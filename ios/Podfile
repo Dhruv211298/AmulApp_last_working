@@ -70,5 +70,24 @@ target 'AmulApp' do
     rescue => e
       Pod::UI.warn "deployment-target bump skipped: #{e.message}"
     end
+
+    # Google ML Kit (seal/vehicle OCR) ships NO arm64 iOS-Simulator slice — only
+    # arm64 for real devices and x86_64 for the simulator. On an Apple-Silicon
+    # Mac the simulators are arm64, so Xcode marks every iPhone simulator
+    # "incompatible". Exclude arm64 for the simulator SDK on BOTH the app project
+    # and the Pods project; iPhone simulators then build x86_64 and run under
+    # Rosetta. Real-device and App Store / archive builds (arm64) are untouched.
+    begin
+      projects = installer.aggregate_targets.map(&:user_project).compact.uniq
+      projects << installer.pods_project
+      projects.compact.each do |project|
+        project.build_configurations.each do |config|
+          config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'arm64'
+        end
+        project.save
+      end
+    rescue => e
+      Pod::UI.warn "simulator arch exclusion skipped: #{e.message}"
+    end
   end
 end
